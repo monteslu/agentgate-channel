@@ -11,6 +11,7 @@ import {
   resolveAgentGateAccount,
   resolveDefaultAgentGateAccountId,
   type AgentGateMessage,
+  type AgentGateMessagesResponse,
   type CoreConfig,
   type ResolvedAgentGateAccount,
 } from "./types.js";
@@ -20,7 +21,7 @@ const activePollers = new Map<string, NodeJS.Timeout>();
 
 /**
  * Fetch unread messages from AgentGate.
- * Returns array of AgentGateMessage directly (not wrapped).
+ * Response is wrapped: { via, mode, messages: [...] }
  */
 async function fetchUnreadMessages(account: ResolvedAgentGateAccount): Promise<AgentGateMessage[]> {
   const { url, token } = account.config;
@@ -34,8 +35,8 @@ async function fetchUnreadMessages(account: ResolvedAgentGateAccount): Promise<A
     throw new Error(`AgentGate fetch failed: ${res.status} ${res.statusText}`);
   }
 
-  const messages: AgentGateMessage[] = await res.json();
-  return messages ?? [];
+  const data: AgentGateMessagesResponse = await res.json();
+  return data.messages ?? [];
 }
 
 /**
@@ -246,30 +247,29 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
           const messages = await fetchUnreadMessages(account);
 
           for (const msg of messages) {
-            // Skip messages not addressed to us
-            if (msg.to_agent !== account.config.agentName) {
-              continue;
-            }
-
+            // All unread messages are for us (API is per-agent token)
             ctx.log?.debug(
-              `[${account.accountId}] Message from ${msg.from_agent}: ${msg.message.slice(0, 50)}...`,
+              `[${account.accountId}] Message from ${msg.from}: ${msg.message.slice(0, 50)}...`,
             );
 
-            // Forward to OpenClaw's message pipeline
-            await runtime.channel.reply.handleInboundMessage({
-              channel: "agentgate",
-              accountId: account.accountId,
-              senderId: msg.from_agent,
-              chatType: "direct",
-              chatId: msg.from_agent, // For DMs, chatId is the sender
-              text: msg.message,
-              reply: async (responseText: string) => {
-                await sendMessage(account, msg.from_agent, responseText);
-              },
-            });
-
-            // Mark message as read
-            await markMessageRead(account, msg.id);
+            try {
+              // Forward to OpenClaw's message pipeline
+              await runtime.channel.reply.handleInboundMessage({
+                channel: "agentgate",
+                accountId: account.accountId,
+                senderId: msg.from,
+                chatType: "direct",
+                chatId: msg.from, // For DMs, chatId is the sender
+                text: msg.message,
+                reply: async (responseText: string) => {
+                  await sendMessage(account, msg.from, responseText);
+                },
+              });
+            } finally {
+              // Mark read AFTER processing (in finally) for at-least-once delivery
+              // If processing crashes, message stays unread and will be reprocessed
+              await markMessageRead(account, msg.id);
+            }
           }
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
@@ -282,8 +282,15 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
       const timer = setInterval(poll, pollIntervalMs);
       activePollers.set(account.accountId, timer);
 
-      // Initial poll
-      await poll();
+      // Initial poll - catch errors so startup doesn't fail
+      try {
+        await poll();
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        ctx.log?.warn(`[${account.accountId}] Initial poll failed: ${errorMsg}`);
+        ctx.setStatus({ lastError: errorMsg });
+        // Don't throw - let polling continue to retry
+      }
 
       ctx.log?.info(
         `[${account.accountId}] AgentGate channel started, polling every ${pollIntervalMs}ms`,
