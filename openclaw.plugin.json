@@ -1,0 +1,9 @@
+{
+  "id": "agentgate",
+  "channels": ["agentgate"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
