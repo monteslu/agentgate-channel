@@ -13,15 +13,24 @@ export interface ResolvedAgentGateAccount {
 
 /**
  * AgentGate inbound message structure.
- * Note: Uses from_agent/to_agent per AgentGate API spec.
+ * Note: Uses `from` field per actual API response (not from_agent).
+ * No to_agent field exists on inbound messages.
  */
 export interface AgentGateMessage {
   id: number;
-  from_agent: string;
-  to_agent: string;
+  from: string;
   message: string;
   created_at: string;
   read: boolean;
+}
+
+/**
+ * AgentGate messages API response wrapper.
+ */
+export interface AgentGateMessagesResponse {
+  via: string;
+  mode: string;
+  messages: AgentGateMessage[];
 }
 
 /**
