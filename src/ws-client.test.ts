@@ -17,11 +17,11 @@ vi.mock("ws", () => {
     mockWebSocketInstances.push(mockWebSocket);
     return mockWebSocket;
   });
-  
+
   // Add the constants as static properties
   WebSocketMock.OPEN = 1;
   WebSocketMock.CLOSED = 3;
-  
+
   return {
     default: WebSocketMock,
   };
@@ -43,7 +43,7 @@ describe("WebSocketClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockWebSocketInstances.length = 0;
-    
+
     mockOnMessage = vi.fn();
     mockOnConnect = vi.fn();
     mockOnError = vi.fn();
@@ -75,17 +75,14 @@ describe("WebSocketClient", () => {
 
   it("should create WebSocket with correct URL and headers", async () => {
     const WebSocket = (await import("ws")).default;
-    
+
     await client.start();
 
-    expect(WebSocket).toHaveBeenCalledWith(
-      "wss://agentgate.example.com/api/channel/",
-      {
-        headers: {
-          Authorization: "Bearer test-token",
-        },
-      }
-    );
+    expect(WebSocket).toHaveBeenCalledWith("wss://agentgate.example.com/api/channel/", {
+      headers: {
+        Authorization: "Bearer test-token",
+      },
+    });
   });
 
   it("should handle connected message", async () => {
@@ -105,7 +102,7 @@ describe("WebSocketClient", () => {
       channelId: "test-channel",
       humans: ["conn1", "conn2"],
     };
-    
+
     await messageHandler?.(Buffer.from(JSON.stringify(connectedMsg)));
 
     expect(mockOnConnect).toHaveBeenCalledWith("test-channel", ["conn1", "conn2"]);
@@ -118,7 +115,7 @@ describe("WebSocketClient", () => {
 
     const onHandler = mockWebSocket.on as ReturnType<typeof vi.fn>;
     const messageHandler = onHandler.mock.calls.find(([event]) => event === "message")?.[1];
-    
+
     const humanMsg: InboundAgentGateMessage = {
       type: "message",
       from: "human",
@@ -127,7 +124,7 @@ describe("WebSocketClient", () => {
       timestamp: "2023-01-01T00:00:00Z",
       connId: "conn1",
     };
-    
+
     await messageHandler?.(Buffer.from(JSON.stringify(humanMsg)));
 
     expect(mockOnMessage).toHaveBeenCalledWith(humanMsg);
@@ -139,7 +136,7 @@ describe("WebSocketClient", () => {
 
     const onHandler = mockWebSocket.on as ReturnType<typeof vi.fn>;
     const messageHandler = onHandler.mock.calls.find(([event]) => event === "message")?.[1];
-    
+
     await messageHandler?.(Buffer.from("invalid json"));
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("Failed to parse message"));
@@ -168,7 +165,7 @@ describe("WebSocketClient", () => {
     mockWebSocket.readyState = 3; // WebSocket.CLOSED
 
     const message = { type: "message" as const, text: "Hello!" };
-    
+
     expect(() => client.send(message)).toThrow("WebSocket is not connected");
   });
 
@@ -198,12 +195,12 @@ describe("WebSocketClient", () => {
 
     const onHandler = mockWebSocket.on as ReturnType<typeof vi.fn>;
     const closeHandler = onHandler.mock.calls.find(([event]) => event === "close")?.[1];
-    
+
     closeHandler?.(1006, "Connection lost");
 
     expect(mockOnDisconnect).toHaveBeenCalled();
     expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("AgentGate WebSocket closed: 1006")
+      expect.stringContaining("AgentGate WebSocket closed: 1006"),
     );
 
     vi.useRealTimers();
@@ -215,13 +212,13 @@ describe("WebSocketClient", () => {
 
     const onHandler = mockWebSocket.on as ReturnType<typeof vi.fn>;
     const errorHandler = onHandler.mock.calls.find(([event]) => event === "error")?.[1];
-    
+
     const error = new Error("Connection failed");
     errorHandler?.(error);
 
     expect(mockOnError).toHaveBeenCalledWith(error);
     expect(mockLog.error).toHaveBeenCalledWith(
-      expect.stringContaining("AgentGate WebSocket error: Connection failed")
+      expect.stringContaining("AgentGate WebSocket error: Connection failed"),
     );
   });
 
@@ -234,7 +231,7 @@ describe("WebSocketClient", () => {
 
     const onHandler = mockWebSocket.on as ReturnType<typeof vi.fn>;
     const closeHandler = onHandler.mock.calls.find(([event]) => event === "close")?.[1];
-    
+
     closeHandler?.(1006, "Connection lost");
 
     // Advance timers - should not trigger reconnect
@@ -271,9 +268,7 @@ describe("WebSocketClient", () => {
     // Advance time to trigger ping
     vi.advanceTimersByTime(5000);
 
-    expect(mockWebSocket.send).toHaveBeenCalledWith(
-      JSON.stringify({ type: "ping" })
-    );
+    expect(mockWebSocket.send).toHaveBeenCalledWith(JSON.stringify({ type: "ping" }));
 
     vi.useRealTimers();
   });
