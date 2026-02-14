@@ -25,7 +25,7 @@ export class WebSocketClient {
   private pingInterval: NodeJS.Timeout | null = null;
   private destroyed = false;
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  
+
   constructor(private options: WebSocketClientOptions) {}
 
   async start(abortSignal?: AbortSignal): Promise<void> {
@@ -84,11 +84,11 @@ export class WebSocketClient {
     this.ws.on("message", async (data: Buffer | string) => {
       try {
         const message: InboundAgentGateMessage = JSON.parse(data.toString());
-        
+
         if (message.type === "connected") {
           this.options.onConnect?.(message.channelId, message.humans);
         }
-        
+
         await this.options.onMessage(message);
       } catch (error) {
         this.options.log?.error(`Failed to parse message: ${error}`);
@@ -131,9 +131,9 @@ export class WebSocketClient {
       this.options.reconnectIntervalMs * Math.pow(2, this.reconnectAttempts - 1),
       this.options.maxReconnectIntervalMs,
     );
-    
+
     this.options.log?.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
     }, delay);
