@@ -63,10 +63,10 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
         connId: to, // Target specific human connection
       });
 
-      return { 
-        channel: "agentgate" as const, 
-        to, 
-        messageId: id 
+      return {
+        channel: "agentgate" as const,
+        to,
+        messageId: id,
       };
     },
   },
@@ -95,12 +95,12 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
         reconnectIntervalMs: account.config.reconnectIntervalMs,
         maxReconnectIntervalMs: account.config.maxReconnectIntervalMs,
         pingIntervalMs: account.config.pingIntervalMs,
-        
+
         onMessage: async (message) => {
           switch (message.type) {
             case "connected":
               log?.info(
-                `Channel ${message.channelId} connected, ${message.humans?.length ?? 0} human(s) online`
+                `Channel ${message.channelId} connected, ${message.humans?.length ?? 0} human(s) online`,
               );
               setStatus({
                 accountId: account.accountId,
@@ -121,8 +121,8 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
 
             case "message":
               if (message.from === "human") {
-                log?.debug(`Message from ${message.connId}: ${message.text.slice(0, 50)}...`);
-                
+                log?.debug?.(`Message from ${message.connId}: ${message.text.slice(0, 50)}...`);
+
                 // Route to OpenClaw's message pipeline
                 await (runtime.channel.reply as any).handleInboundMessage({
                   channel: "agentgate",
@@ -182,7 +182,7 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
           info: (msg: string) => log?.info(msg),
           warn: (msg: string) => log?.warn(msg),
           error: (msg: string) => log?.error(msg),
-          debug: (msg: string) => log?.debug(msg),
+          debug: (msg: string) => log?.debug?.(msg),
         },
       });
 
