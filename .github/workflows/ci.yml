@@ -15,8 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-      - run: npm ci
+      - run: npm install --include=dev
       - run: npm run lint
       - run: npm run format:check
 
@@ -28,8 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-      - run: npm ci
+      - run: npm install --include=dev
       - run: npm run typecheck
 
   test:
@@ -43,8 +41,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-      - run: npm ci
+      - run: npm install --include=dev
       - run: npm run test:coverage
       - uses: codecov/codecov-action@v4
         if: matrix.node-version == 22
