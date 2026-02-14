@@ -3,15 +3,13 @@ import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { agentgatePlugin } from "./src/channel.js";
 import { setAgentGateRuntime } from "./src/runtime.js";
 
-const plugin = {
+export default {
   id: "agentgate",
   name: "AgentGate",
   description: "AgentGate channel plugin — chat with humans through AgentGate",
-  configSchema: emptyPluginConfigSchema(),
+  configSchema: emptyPluginConfigSchema() as unknown,
   register(api: OpenClawPluginApi) {
     setAgentGateRuntime(api.runtime);
     api.registerChannel({ plugin: agentgatePlugin });
   },
 };
-
-export default plugin;
