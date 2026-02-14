@@ -1,6 +1,6 @@
 # agentgate-channel
 
-OpenClaw channel plugin for AgentGate — connect agents to humans through AgentGate's WebSocket chat API.
+OpenClaw channel plugin for [AgentGate](https://github.com/monteslu/agentgate) — connect agents to humans through AgentGate's WebSocket chat API.
 
 ## Overview
 
@@ -37,14 +37,14 @@ channels:
   agentgate:
     url: "${AGENT_GATE_URL}"
     token: "${AGENT_GATE_TOKEN}"
-    channelId: "your-channel-id"
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `url` | Yes | AgentGate server URL (use `AGENT_GATE_URL` env var) |
 | `token` | Yes | API key for Bearer auth (use `AGENT_GATE_TOKEN` env var) |
-| `channelId` | Yes | Channel ID configured in AgentGate |
+
+The channel ID is derived from the API key — AgentGate knows which channel the agent belongs to from the token alone.
 
 ## Protocol
 
@@ -79,7 +79,7 @@ channels:
 
 ## How It Works
 
-1. Plugin opens a WebSocket to `${AGENT_GATE_URL}/api/channel/${channelId}`
+1. Plugin opens a WebSocket to `${AGENT_GATE_URL}/api/channel/`
 2. Authenticates with `Authorization: Bearer ${token}` header
 3. Receives `connected` message with list of currently connected humans
 4. Human messages arrive as `{ type: "message", from: "human" }` events
