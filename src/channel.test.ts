@@ -128,24 +128,44 @@ describe("agentgatePlugin", () => {
     it("should send text message", async () => {
       // Start an account first so the client gets registered in activeClients
       const account = {
-        accountId: DEFAULT_ACCOUNT_ID, name: "agentgate", enabled: true, configured: true,
-        config: { url: "https://example.com", token: "t", reconnectIntervalMs: 5000, maxReconnectIntervalMs: 60000, pingIntervalMs: 30000 },
+        accountId: DEFAULT_ACCOUNT_ID,
+        name: "agentgate",
+        enabled: true,
+        configured: true,
+        config: {
+          url: "https://example.com",
+          token: "t",
+          reconnectIntervalMs: 5000,
+          maxReconnectIntervalMs: 60000,
+          pingIntervalMs: 30000,
+        },
       };
       const ctx = {
-        cfg: {} as any, accountId: DEFAULT_ACCOUNT_ID, account, runtime: {} as any,
+        cfg: {} as any,
+        accountId: DEFAULT_ACCOUNT_ID,
+        account,
+        runtime: {} as any,
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-        setStatus: vi.fn(), abortSignal: new AbortController().signal, getStatus: vi.fn(),
+        setStatus: vi.fn(),
+        abortSignal: new AbortController().signal,
+        getStatus: vi.fn(),
       };
       await agentgatePlugin.gateway!.startAccount!(ctx);
       vi.clearAllMocks();
       sharedMockClient.isConnected.mockReturnValue(true);
 
       const result = await agentgatePlugin.outbound!.sendText!({
-        cfg: {} as any, to: "conn1", text: "Hello!", accountId: DEFAULT_ACCOUNT_ID,
+        cfg: {} as any,
+        to: "conn1",
+        text: "Hello!",
+        accountId: DEFAULT_ACCOUNT_ID,
       });
 
       expect(sharedMockClient.send).toHaveBeenCalledWith({
-        type: "message", text: "Hello!", id: expect.any(String), connId: "conn1",
+        type: "message",
+        text: "Hello!",
+        id: expect.any(String),
+        connId: "conn1",
       });
       expect(result).toEqual({ channel: "agentgate", to: "conn1", messageId: expect.any(String) });
     });
@@ -155,19 +175,38 @@ describe("agentgatePlugin", () => {
 
       // Start account to register client
       const account = {
-        accountId: DEFAULT_ACCOUNT_ID, name: "agentgate", enabled: true, configured: true,
-        config: { url: "https://example.com", token: "t", reconnectIntervalMs: 5000, maxReconnectIntervalMs: 60000, pingIntervalMs: 30000 },
+        accountId: DEFAULT_ACCOUNT_ID,
+        name: "agentgate",
+        enabled: true,
+        configured: true,
+        config: {
+          url: "https://example.com",
+          token: "t",
+          reconnectIntervalMs: 5000,
+          maxReconnectIntervalMs: 60000,
+          pingIntervalMs: 30000,
+        },
       };
       const ctx = {
-        cfg: {} as any, accountId: DEFAULT_ACCOUNT_ID, account, runtime: {} as any,
+        cfg: {} as any,
+        accountId: DEFAULT_ACCOUNT_ID,
+        account,
+        runtime: {} as any,
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-        setStatus: vi.fn(), abortSignal: new AbortController().signal, getStatus: vi.fn(),
+        setStatus: vi.fn(),
+        abortSignal: new AbortController().signal,
+        getStatus: vi.fn(),
       };
       await agentgatePlugin.gateway!.startAccount!(ctx);
       sharedMockClient.isConnected.mockReturnValue(false);
 
       await expect(
-        agentgatePlugin.outbound!.sendText!({ cfg: {} as any, to: "conn1", text: "Hi", accountId: DEFAULT_ACCOUNT_ID })
+        agentgatePlugin.outbound!.sendText!({
+          cfg: {} as any,
+          to: "conn1",
+          text: "Hi",
+          accountId: DEFAULT_ACCOUNT_ID,
+        }),
       ).rejects.toThrow("AgentGate WebSocket not connected");
     });
   });
@@ -175,31 +214,54 @@ describe("agentgatePlugin", () => {
   describe("gateway", () => {
     it("should throw when account not configured", async () => {
       const ctx = {
-        cfg: {} as any, accountId: DEFAULT_ACCOUNT_ID,
-        account: { accountId: DEFAULT_ACCOUNT_ID, name: "agentgate", enabled: true, configured: false, config: {} as any },
+        cfg: {} as any,
+        accountId: DEFAULT_ACCOUNT_ID,
+        account: {
+          accountId: DEFAULT_ACCOUNT_ID,
+          name: "agentgate",
+          enabled: true,
+          configured: false,
+          config: {} as any,
+        },
         runtime: {} as any,
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-        setStatus: vi.fn(), abortSignal: new AbortController().signal, getStatus: vi.fn(),
+        setStatus: vi.fn(),
+        abortSignal: new AbortController().signal,
+        getStatus: vi.fn(),
       };
       await expect(agentgatePlugin.gateway!.startAccount(ctx)).rejects.toThrow("not configured");
     });
 
     it("should start account successfully", async () => {
       const account = {
-        accountId: DEFAULT_ACCOUNT_ID, name: "agentgate", enabled: true, configured: true,
-        config: { url: "https://example.com", token: "t", reconnectIntervalMs: 5000, maxReconnectIntervalMs: 60000, pingIntervalMs: 30000 },
+        accountId: DEFAULT_ACCOUNT_ID,
+        name: "agentgate",
+        enabled: true,
+        configured: true,
+        config: {
+          url: "https://example.com",
+          token: "t",
+          reconnectIntervalMs: 5000,
+          maxReconnectIntervalMs: 60000,
+          pingIntervalMs: 30000,
+        },
       };
       const ctx = {
-        cfg: {} as any, accountId: DEFAULT_ACCOUNT_ID, account, runtime: {} as any,
+        cfg: {} as any,
+        accountId: DEFAULT_ACCOUNT_ID,
+        account,
+        runtime: {} as any,
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-        setStatus: vi.fn(), abortSignal: new AbortController().signal, getStatus: vi.fn(),
+        setStatus: vi.fn(),
+        abortSignal: new AbortController().signal,
+        getStatus: vi.fn(),
       };
 
       const result = await agentgatePlugin.gateway!.startAccount!(ctx);
 
       expect(sharedMockClient.start).toHaveBeenCalled();
       expect(ctx.setStatus).toHaveBeenCalledWith(
-        expect.objectContaining({ accountId: DEFAULT_ACCOUNT_ID, running: true })
+        expect.objectContaining({ accountId: DEFAULT_ACCOUNT_ID, running: true }),
       );
 
       // Test stop
