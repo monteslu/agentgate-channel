@@ -1,22 +1,26 @@
 # agentgate-channel
 
-OpenClaw channel plugin for AgentGate — proxy AI agent messaging through AgentGate.
+OpenClaw channel plugin for AgentGate — connect agents to humans through AgentGate's WebSocket chat API.
 
 ## Overview
 
-This plugin allows OpenClaw agents to send and receive messages through AgentGate's agent messaging system. Messages flow through AgentGate's approval queue when required, maintaining human-in-the-loop control.
+This plugin connects an OpenClaw agent to AgentGate's `/api/channel/<id>` WebSocket endpoint. Humans connect separately to `/channel/<id>`. AgentGate bridges the two — the human never sees OpenClaw internals.
 
 ## Architecture
 
 ```
-OpenClaw Agent <-> agentgate-channel <-> AgentGate API <-> Other Agents
+Human App ←WS→ AgentGate /channel/<id> ←WS→ OpenClaw (agentgate-channel plugin)
 ```
+
+- **Human** connects to `WS /channel/<id>` — authenticates with channel key
+- **Agent (this plugin)** connects to `WS /api/channel/<id>` — authenticates with Bearer token
+- **AgentGate** bridges messages between them, stores chat history
 
 ## Installation
 
 ```bash
 # From npm (when published)
-openclaw extensions install @openclaw/agentgate
+openclaw extensions install agentgate-channel
 
 # Or local development
 git clone https://github.com/monteslu/agentgate-channel
@@ -31,29 +35,58 @@ Add to your OpenClaw config:
 ```yaml
 channels:
   agentgate:
-    url: "https://your-agentgate.example.com"
+    url: "${AGENT_GATE_URL}"
     token: "${AGENT_GATE_TOKEN}"
-    agentName: "myagent"
-    pollIntervalMs: 5000
+    channelId: "your-channel-id"
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `url` | Yes | AgentGate server URL |
-| `token` | Yes | Bearer token for authentication |
-| `agentName` | Yes | This agent's identity in AgentGate |
-| `pollIntervalMs` | No | Polling interval in ms (default: 5000) |
+| `url` | Yes | AgentGate server URL (use `AGENT_GATE_URL` env var) |
+| `token` | Yes | API key for Bearer auth (use `AGENT_GATE_TOKEN` env var) |
+| `channelId` | Yes | Channel ID configured in AgentGate |
+
+## Protocol
+
+### Agent → AgentGate
+
+```jsonc
+// Send message to human(s)
+{ "type": "message", "text": "hello", "id": "msg_123", "connId": "optional-target" }
+
+// Streaming response
+{ "type": "chunk", "text": "partial...", "id": "msg_123" }
+{ "type": "done", "id": "msg_123", "text": "optional-full-text" }
+
+// Status
+{ "type": "typing", "connId": "optional-target" }
+{ "type": "error", "error": "something went wrong", "messageId": "msg_123" }
+```
+
+### AgentGate → Agent
+
+```jsonc
+// On connect
+{ "type": "connected", "channelId": "abc", "humans": ["conn_1", "conn_2"] }
+
+// Human lifecycle
+{ "type": "human_connected", "connId": "conn_3" }
+{ "type": "human_disconnected", "connId": "conn_1" }
+
+// Human message
+{ "type": "message", "from": "human", "text": "hi there", "id": "msg_456", "timestamp": "...", "connId": "conn_1" }
+```
 
 ## How It Works
 
-### Receiving Messages
-- Polls `GET /api/agents/messages?unread=true` at configured interval
-- Routes incoming messages to OpenClaw session
-- Marks messages as read after processing
+1. Plugin opens a WebSocket to `${AGENT_GATE_URL}/api/channel/${channelId}`
+2. Authenticates with `Authorization: Bearer ${token}` header
+3. Receives `connected` message with list of currently connected humans
+4. Human messages arrive as `{ type: "message", from: "human" }` events
+5. Plugin routes them into the OpenClaw session
+6. Agent responses are sent back as `message`, `chunk`/`done` (streaming), or `typing` indicators
 
-### Sending Messages
-- Uses `POST /api/agents/message` with `{ to_agent, message }`
-- Supports direct messages to specific agents
+If the WebSocket disconnects, AgentGate queues human messages (up to 100) until the agent reconnects.
 
 ## Development
 
@@ -64,23 +97,10 @@ npm run test
 npm run lint
 ```
 
-## File Structure
-
-```
-agentgate-channel/
-├── package.json
-├── tsconfig.json
-├── index.ts              # Plugin entry point
-└── src/
-    ├── channel.ts        # ChannelPlugin implementation
-    ├── config-schema.ts  # Zod config validation
-    └── types.ts          # TypeScript interfaces
-```
-
 ## See Also
 
-- [SPEC.md](./SPEC.md) — Full technical specification
 - [AgentGate](https://github.com/monteslu/agentgate) — The AgentGate server
+- [AgentGate PR #251](https://github.com/monteslu/agentgate/pull/251) — Server-side implementation
 - [OpenClaw Docs](https://docs.openclaw.ai/channels) — Channel plugin documentation
 
 ## License
