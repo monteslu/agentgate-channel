@@ -1,7 +1,9 @@
+import http from "node:http";
 import {
   buildChannelConfigSchema,
   DEFAULT_ACCOUNT_ID,
   type ChannelPlugin,
+  type OpenClawConfig,
 } from "openclaw/plugin-sdk";
 import { AgentGateConfigSchema } from "./config-schema.js";
 import { getAgentGateRuntime } from "./runtime.js";
@@ -11,10 +13,69 @@ import {
   resolveAccount,
   type ResolvedAgentGateAccount,
 } from "./types.js";
+import type { InboundWakeMessage, InboundAgentMessage } from "./types.js";
 import { WebSocketClient } from "./ws-client.js";
 
 // Store active WebSocket clients per account
 const activeClients = new Map<string, WebSocketClient>();
+
+// Local hooks configuration resolved from OpenClaw config
+interface HooksConfig {
+  enabled: boolean;
+  wakeUrl: string;
+  agentUrl: string;
+  token: string;
+}
+
+function resolveHooksConfig(cfg: OpenClawConfig): HooksConfig {
+  const gatewayPort = (cfg as any).gateway?.port ?? 18789;
+  const hooksToken = (cfg as any).hooks?.token ?? "";
+  const hooksPath = (cfg as any).hooks?.path?.replace(/\/+$/, "") ?? "/hooks";
+  const hooksEnabled = (cfg as any).hooks?.enabled === true;
+  const basePath = hooksPath.startsWith("/") ? hooksPath : `/${hooksPath}`;
+
+  return {
+    enabled: hooksEnabled && Boolean(hooksToken),
+    wakeUrl: `http://127.0.0.1:${gatewayPort}${basePath}/wake`,
+    agentUrl: `http://127.0.0.1:${gatewayPort}${basePath}/agent`,
+    token: hooksToken,
+  };
+}
+
+/**
+ * POST JSON to a local hooks endpoint
+ */
+function postLocalHook(url: string, token: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; body: string }> {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify(body);
+    const parsed = new URL(url);
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk));
+        res.on("end", () => {
+          resolve({ ok: res.statusCode === 200 || res.statusCode === 202, status: res.statusCode ?? 0, body: data });
+        });
+      },
+    );
+    req.on("error", (err) => {
+      resolve({ ok: false, status: 0, body: err.message });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
 
 export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
   id: "agentgate",
@@ -23,12 +84,12 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
     label: "AgentGate",
     selectionLabel: "AgentGate",
     docsPath: "/channels/agentgate",
-    blurb: "Chat with humans through AgentGate",
+    blurb: "Connect to AgentGate for chat, wake, and agent turns",
     order: 100,
   },
   capabilities: {
-    chatTypes: ["direct"], // DMs only for MVP
-    media: false, // Text only for MVP
+    chatTypes: ["direct"],
+    media: false,
   },
   configSchema: buildChannelConfigSchema(AgentGateConfigSchema as any),
 
@@ -60,7 +121,7 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
         type: "message",
         text: text ?? "",
         id,
-        connId: to, // Target specific human connection
+        connId: to,
       });
 
       return {
@@ -73,13 +134,24 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
 
   gateway: {
     startAccount: async (ctx) => {
-      const { account, log, setStatus, abortSignal } = ctx;
+      const { cfg, account, log, setStatus, abortSignal } = ctx;
       const runtime = getAgentGateRuntime();
 
       log?.info(`[${account.accountId}] Starting AgentGate provider`);
 
       if (!account.configured) {
         throw new Error("AgentGate URL and token not configured");
+      }
+
+      // Resolve local hooks config for wake/agent support
+      const hooks = resolveHooksConfig(cfg);
+      if (hooks.enabled) {
+        log?.info(`Hooks enabled — wake: ${hooks.wakeUrl}, agent: ${hooks.agentUrl}`);
+      } else {
+        log?.warn(
+          "Hooks not enabled in OpenClaw config. wake/agent message types will return errors. " +
+            "Only chat (message) type is available. Enable hooks in openclaw.json to use all message types.",
+        );
       }
 
       setStatus({
@@ -121,29 +193,106 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
 
             case "message":
               if (message.from === "human") {
-                log?.debug?.(`Message from ${message.connId}: ${message.text.slice(0, 50)}...`);
+                log?.debug?.(`Chat from ${message.connId}: ${message.text.slice(0, 80)}...`);
 
-                // Route to OpenClaw's message pipeline
+                // Route through OpenClaw's channel pipeline for chat
                 await (runtime.channel.reply as any).handleInboundMessage({
                   channel: "agentgate",
                   accountId: account.accountId,
                   senderId: message.connId,
                   chatType: "direct",
-                  chatId: message.connId, // Use connId as chat identifier
+                  chatId: message.connId,
                   text: message.text,
                   reply: async (responseText: string) => {
                     if (client.isConnected()) {
                       client.send({
-                        type: "message",
+                        type: "reply" as any,
+                        replyTo: message.id,
                         text: responseText,
                         id: crypto.randomUUID(),
-                        connId: message.connId,
+                        timestamp: new Date().toISOString(),
                       });
                     }
                   },
                 });
               }
               break;
+
+            case "wake": {
+              const wakeMsg = message as InboundWakeMessage;
+              log?.info(`Wake event: ${wakeMsg.text.slice(0, 80)}`);
+
+              if (!hooks.enabled) {
+                log?.error("Cannot process wake: hooks not enabled");
+                client.send({
+                  type: "error",
+                  error: "Hooks not enabled in OpenClaw config",
+                  messageId: wakeMsg.id,
+                });
+                break;
+              }
+
+              const wakeResult = await postLocalHook(hooks.wakeUrl, hooks.token, {
+                text: wakeMsg.text,
+                mode: wakeMsg.mode ?? "now",
+              });
+
+              if (wakeResult.ok) {
+                log?.info(`Wake dispatched: ${wakeMsg.id}`);
+                client.send({ type: "ack" as any, id: wakeMsg.id, status: "dispatched" });
+              } else {
+                log?.error(`Wake failed (${wakeResult.status}): ${wakeResult.body}`);
+                client.send({
+                  type: "ack" as any,
+                  id: wakeMsg.id,
+                  status: "error",
+                  error: `Hook returned ${wakeResult.status}`,
+                });
+              }
+              break;
+            }
+
+            case "agent": {
+              const agentMsg = message as InboundAgentMessage;
+              log?.info(`Agent turn: ${agentMsg.name ?? "unnamed"} — ${agentMsg.message.slice(0, 80)}`);
+
+              if (!hooks.enabled) {
+                log?.error("Cannot process agent turn: hooks not enabled");
+                client.send({
+                  type: "error",
+                  error: "Hooks not enabled in OpenClaw config",
+                  messageId: agentMsg.id,
+                });
+                break;
+              }
+
+              const agentBody: Record<string, unknown> = {
+                message: agentMsg.message,
+                name: agentMsg.name ?? "agentgate",
+              };
+              if (agentMsg.deliver !== undefined) agentBody.deliver = agentMsg.deliver;
+              if (agentMsg.channel) agentBody.channel = agentMsg.channel;
+              if (agentMsg.to) agentBody.to = agentMsg.to;
+              if (agentMsg.model) agentBody.model = agentMsg.model;
+              if (agentMsg.thinking) agentBody.thinking = agentMsg.thinking;
+              if (agentMsg.timeoutSeconds) agentBody.timeoutSeconds = agentMsg.timeoutSeconds;
+
+              const agentResult = await postLocalHook(hooks.agentUrl, hooks.token, agentBody);
+
+              if (agentResult.ok) {
+                log?.info(`Agent turn dispatched: ${agentMsg.id}`);
+                client.send({ type: "ack" as any, id: agentMsg.id, status: "dispatched" });
+              } else {
+                log?.error(`Agent turn failed (${agentResult.status}): ${agentResult.body}`);
+                client.send({
+                  type: "ack" as any,
+                  id: agentMsg.id,
+                  status: "error",
+                  error: `Hook returned ${agentResult.status}`,
+                });
+              }
+              break;
+            }
 
             case "error":
               log?.error(`AgentGate error: ${message.error}`);
@@ -154,7 +303,6 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
               break;
 
             case "pong":
-              // Keepalive response, no action needed
               break;
           }
         },
@@ -186,10 +334,7 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
         },
       });
 
-      // Store the client for outbound message sending
       activeClients.set(account.accountId, client);
-
-      // Start the WebSocket connection
       await client.start(abortSignal);
 
       setStatus({
@@ -200,7 +345,6 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
 
       log?.info(`[${account.accountId}] AgentGate provider started`);
 
-      // Return cleanup function
       return {
         stop: () => {
           client.stop();
