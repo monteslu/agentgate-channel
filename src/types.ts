@@ -20,13 +20,33 @@ export interface HumanDisconnectedMessage {
   connId: string;
 }
 
-export interface InboundMessage {
+export interface InboundChatMessage {
   type: "message";
   from: "human";
   text: string;
   id: string;
   timestamp: string;
   connId: string;
+}
+
+export interface InboundWakeMessage {
+  type: "wake";
+  id: string;
+  text: string;
+  mode?: "now" | "next-heartbeat";
+}
+
+export interface InboundAgentMessage {
+  type: "agent";
+  id: string;
+  message: string;
+  name?: string;
+  deliver?: boolean;
+  channel?: string;
+  to?: string;
+  model?: string;
+  thinking?: string;
+  timeoutSeconds?: number;
 }
 
 export interface ErrorMessage {
@@ -42,7 +62,9 @@ export type InboundAgentGateMessage =
   | ConnectedMessage
   | HumanConnectedMessage
   | HumanDisconnectedMessage
-  | InboundMessage
+  | InboundChatMessage
+  | InboundWakeMessage
+  | InboundAgentMessage
   | ErrorMessage
   | PongMessage;
 
@@ -54,10 +76,19 @@ export interface OutboundMessage {
   connId?: string;
 }
 
+export interface OutboundReplyMessage {
+  type: "reply";
+  replyTo: string;
+  text: string;
+  id: string;
+  timestamp: string;
+}
+
 export interface ChunkMessage {
   type: "chunk";
   text: string;
   id: string;
+  replyTo?: string;
   connId?: string;
 }
 
@@ -66,6 +97,13 @@ export interface DoneMessage {
   id: string;
   text?: string;
   connId?: string;
+}
+
+export interface AckMessage {
+  type: "ack";
+  id: string;
+  status: "dispatched" | "error";
+  error?: string;
 }
 
 export interface TypingMessage {
@@ -86,8 +124,10 @@ export interface PingMessage {
 
 export type OutboundAgentGateMessage =
   | OutboundMessage
+  | OutboundReplyMessage
   | ChunkMessage
   | DoneMessage
+  | AckMessage
   | TypingMessage
   | OutboundErrorMessage
   | PingMessage;
