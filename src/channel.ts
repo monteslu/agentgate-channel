@@ -45,7 +45,11 @@ function resolveHooksConfig(cfg: OpenClawConfig): HooksConfig {
 /**
  * POST JSON to a local hooks endpoint
  */
-function postLocalHook(url: string, token: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; body: string }> {
+function postLocalHook(
+  url: string,
+  token: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: boolean; status: number; body: string }> {
   return new Promise((resolve) => {
     const payload = JSON.stringify(body);
     const parsed = new URL(url);
@@ -65,7 +69,11 @@ function postLocalHook(url: string, token: string, body: Record<string, unknown>
         let data = "";
         res.on("data", (chunk: Buffer) => (data += chunk));
         res.on("end", () => {
-          resolve({ ok: res.statusCode === 200 || res.statusCode === 202, status: res.statusCode ?? 0, body: data });
+          resolve({
+            ok: res.statusCode === 200 || res.statusCode === 202,
+            status: res.statusCode ?? 0,
+            body: data,
+          });
         });
       },
     );
@@ -254,7 +262,9 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
 
             case "agent": {
               const agentMsg = message as InboundAgentMessage;
-              log?.info(`Agent turn: ${agentMsg.name ?? "unnamed"} — ${agentMsg.message.slice(0, 80)}`);
+              log?.info(
+                `Agent turn: ${agentMsg.name ?? "unnamed"} — ${agentMsg.message.slice(0, 80)}`,
+              );
 
               if (!hooks.enabled) {
                 log?.error("Cannot process agent turn: hooks not enabled");
