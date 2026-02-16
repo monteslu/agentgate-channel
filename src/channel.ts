@@ -211,10 +211,11 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
                   chatType: "direct",
                   chatId: message.connId,
                   text: message.text,
+                  messageId: message.id,
                   reply: async (responseText: string) => {
                     if (client.isConnected()) {
                       client.send({
-                        type: "reply" as any,
+                        type: "message",
                         replyTo: message.id,
                         text: responseText,
                         id: crypto.randomUUID(),
