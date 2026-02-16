@@ -1,0 +1,56 @@
+{
+  "name": "agentgate-channel",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write 'src/**/*.ts' 'index.ts'",
+    "format:check": "prettier --check 'src/**/*.ts' 'index.ts'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.55.0",
+    "@typescript-eslint/parser": "^8.55.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.3.0",
+    "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channels": [
+      "agentgate"
+    ],
+    "installDependencies": true,
+    "channel": {
+      "id": "agentgate",
+      "label": "AgentGate",
+      "selectionLabel": "AgentGate",
+      "blurb": "Chat with humans through AgentGate",
+      "order": 100
+    },
+    "install": {
+      "npmSpec": "agentgate-channel",
+      "localPath": "extensions/agentgate-channel",
+      "defaultChoice": "local"
+    }
+  }
+}

@@ -58,6 +58,12 @@ The channel ID is derived from the API key — no channel ID in the URL.
 // Human sent a message
 { type: "message", from: "human", text: string, id: string, timestamp: string, connId: string }
 
+// Wake event — inject a system event into the agent's main session
+{ type: "wake", text: string, id: string, mode?: "now" | "next-heartbeat" }
+
+// Agent turn — run an isolated agent turn (like sessions_spawn)
+{ type: "agent", message: string, id: string, name?: string, model?: string, thinking?: string, timeoutSeconds?: number, deliver?: boolean, channel?: string, to?: string }
+
 // Server-side errors
 { type: "error", error: string }
 
@@ -79,6 +85,9 @@ The channel ID is derived from the API key — no channel ID in the URL.
 { type: "typing", connId?: string }
 { type: "error", error: string, messageId?: string, connId?: string }
 
+// Acknowledgment for wake/agent messages
+{ type: "ack", id: string, status: "dispatched" | "error", error?: string }
+
 // Keepalive
 { type: "ping" }
 ```
@@ -87,6 +96,39 @@ The channel ID is derived from the API key — no channel ID in the URL.
 - `connId` is optional. If omitted, message goes to all connected humans.
 - `id` on outbound messages is a plugin-generated message ID (use `nanoid` or `crypto.randomUUID()`).
 - For streaming, send `chunk` messages followed by a final `done`. The `done` may include the full concatenated `text`.
+
+---
+
+## Message Type Routing
+
+The plugin multiplexes three message types over one WebSocket connection:
+
+| Type | Purpose | Plugin Route |
+|------|---------|-------------|
+| `message` | Chat — human ↔ agent conversation | `handleInboundMessage()` (OpenClaw channel pipeline) |
+| `wake` | System event — inject into main session | `POST http://127.0.0.1:{gateway.port}/hooks/wake` |
+| `agent` | Isolated agent turn — like `sessions_spawn` | `POST http://127.0.0.1:{gateway.port}/hooks/agent` |
+
+### Why local hooks for wake/agent?
+
+The OpenClaw plugin SDK explicitly forbids `enqueueSystemEvent` from plugins. Wake and agent turns bypass the channel pipeline entirely — they're not chat messages. The plugin POSTs to the gateway's local hooks endpoints instead:
+
+- **Wake**: `POST /hooks/wake` with `{ text, mode }` — injects a system event
+- **Agent**: `POST /hooks/agent` with `{ message, name, model, ... }` — spawns an isolated turn
+
+Both require `hooks.enabled: true` and `hooks.token` in the OpenClaw config. The plugin reads these from `cfg.gateway.port` and `cfg.hooks.*`.
+
+### Acknowledgments
+
+For wake and agent messages, the plugin sends an `ack` back to AgentGate:
+
+```typescript
+// Success
+{ type: "ack", id: "<original-message-id>", status: "dispatched" }
+
+// Failure (hooks not enabled, hook returned error, etc.)
+{ type: "ack", id: "<original-message-id>", status: "error", error: "reason" }
+```
 
 ---
 
