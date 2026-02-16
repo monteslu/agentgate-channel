@@ -74,14 +74,8 @@ export interface OutboundMessage {
   text: string;
   id?: string;
   connId?: string;
-}
-
-export interface OutboundReplyMessage {
-  type: "reply";
-  replyTo: string;
-  text: string;
-  id: string;
-  timestamp: string;
+  replyTo?: string;
+  timestamp?: string;
 }
 
 export interface ChunkMessage {
@@ -124,7 +118,6 @@ export interface PingMessage {
 
 export type OutboundAgentGateMessage =
   | OutboundMessage
-  | OutboundReplyMessage
   | ChunkMessage
   | DoneMessage
   | AckMessage
