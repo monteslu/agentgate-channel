@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { buildChannelConfigSchema } from "openclaw/plugin-sdk";
+import { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-core";
 
 /**
  * Zod schema for channels.agentgate.* configuration

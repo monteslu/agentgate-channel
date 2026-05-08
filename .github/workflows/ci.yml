@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --include=dev
+      - run: npm ci
       - run: npm run lint
       - run: npm run format:check
 
@@ -27,8 +28,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --include=dev
+      - run: npm ci
       - run: npm run typecheck
+      - run: npm run build
 
   test:
     name: Test
@@ -41,7 +43,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm install --include=dev
+      - run: npm ci
       - run: npm run test:coverage
       - uses: codecov/codecov-action@v4
         if: matrix.node-version == 22

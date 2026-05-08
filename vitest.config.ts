@@ -18,8 +18,15 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      'openclaw/plugin-sdk': path.resolve(__dirname, 'test-mocks/openclaw-plugin-sdk.ts'),
-    },
+    alias: [
+      {
+        find: /^openclaw\/plugin-sdk\/(account-id|channel-core)$/,
+        replacement: path.resolve(__dirname, "test-mocks/openclaw-plugin-sdk.ts"),
+      },
+      {
+        find: /^openclaw\/plugin-sdk$/,
+        replacement: path.resolve(__dirname, "test-mocks/openclaw-plugin-sdk.ts"),
+      },
+    ],
   },
 });

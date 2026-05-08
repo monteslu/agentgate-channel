@@ -66,7 +66,7 @@ export class WebSocketClient {
   private connect(): void {
     if (this.destroyed) return;
 
-    const wsUrl = this.options.url.replace(/^http/, "ws") + "/api/channel/";
+    const wsUrl = `${this.options.url.replace(/^http/, "ws").replace(/\/+$/, "")}/api/channel/`;
     this.options.log?.info(`Connecting to AgentGate: ${wsUrl}`);
 
     this.ws = new WebSocket(wsUrl, {

@@ -105,7 +105,7 @@ The plugin multiplexes three message types over one WebSocket connection:
 
 | Type | Purpose | Plugin Route |
 |------|---------|-------------|
-| `message` | Chat — human ↔ agent conversation | `handleInboundMessage()` (OpenClaw channel pipeline) |
+| `message` | Chat — human ↔ agent conversation | `dispatchInboundDirectDmWithRuntime()` via `openclaw/plugin-sdk/direct-dm` |
 | `wake` | System event — inject into main session | `POST http://127.0.0.1:{gateway.port}/hooks/wake` |
 | `agent` | Isolated agent turn — like `sessions_spawn` | `POST http://127.0.0.1:{gateway.port}/hooks/agent` |
 
@@ -140,6 +140,8 @@ From `openclaw/plugin-sdk`:
 
 ```typescript
 import type { ChannelPlugin } from "openclaw/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
+import { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-core";
 
 type ChannelPlugin<ResolvedAccount> = {
   id: ChannelId;
@@ -179,7 +181,7 @@ capabilities: {
 
 ```typescript
 import { z } from "zod";
-import { buildChannelConfigSchema } from "openclaw/plugin-sdk";
+import { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-core";
 
 const AgentGateConfigSchema = z.object({
   url: z.string().url().describe("AgentGate server URL"),
@@ -199,7 +201,7 @@ configSchema: buildChannelConfigSchema(AgentGateConfigSchema),
 Single-account channel (one AgentGate connection per OpenClaw instance).
 
 ```typescript
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 
 config: {
   listAccountIds: (cfg) => {
@@ -368,21 +370,34 @@ async function handleInbound(msg: any, ctx: ChannelGatewayContext, runtime: Plug
 
     case "message":
       if (msg.from === "human") {
-        // Route to OpenClaw's reply pipeline
-        await runtime.channel.reply.dispatchReplyFromConfig({
-          ctx: {
-            channel: "agentgate",
-            accountId: account.accountId,
-            senderId: msg.connId,       // Human's connection ID
-            chatType: "direct",
-            chatId: msg.connId,         // Use connId as chat identifier
-            text: msg.text,
-            messageId: msg.id,
-            timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
+        // Route to OpenClaw's direct-DM/channel reply pipeline.
+        await dispatchInboundDirectDmWithRuntime({
+          cfg,
+          runtime,
+          channel: "agentgate",
+          channelLabel: "AgentGate",
+          accountId: account.accountId,
+          peer: { kind: "direct", id: msg.connId },
+          senderId: msg.connId,
+          senderAddress: msg.connId,
+          recipientAddress: "agentgate",
+          conversationLabel: `AgentGate ${msg.connId}`,
+          rawBody: msg.text,
+          messageId: msg.id,
+          timestamp: msg.timestamp ? Date.parse(msg.timestamp) : undefined,
+          deliver: async (payload) => {
+            if (payload.text) {
+              ws.send(JSON.stringify({
+                type: "message",
+                replyTo: msg.id,
+                text: payload.text,
+                id: crypto.randomUUID(),
+                connId: msg.connId,
+              }));
+            }
           },
-          cfg: runtime.config.loadConfig(),
-          dispatcher: /* see Outbound Dispatcher section */,
-          replyOptions: {},
+          onRecordError: log.warn,
+          onDispatchError: log.error,
         });
       }
       break;
@@ -398,9 +413,9 @@ async function handleInbound(msg: any, ctx: ChannelGatewayContext, runtime: Plug
 }
 ```
 
-**Important:** Use `dispatchReplyFromConfig` (not `handleInboundMessage`) for full pipeline support including debouncing, command detection, and reply dispatching. See the Matrix or Feishu extensions for reference patterns.
+**Important:** Prefer `dispatchInboundDirectDmWithRuntime` from `openclaw/plugin-sdk/direct-dm` for current OpenClaw. It routes, records, envelopes, and dispatches a direct-message turn through the standard channel pipeline.
 
-Alternatively, for a simpler MVP, `handleInboundMessage` (as used by the Nostr plugin) is acceptable:
+The plugin keeps a legacy fallback for older runtimes that still expose `runtime.channel.reply.handleInboundMessage`:
 
 ```typescript
 await runtime.channel.reply.handleInboundMessage({

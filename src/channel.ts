@@ -1,11 +1,9 @@
 import http from "node:http";
-import {
-  buildChannelConfigSchema,
-  DEFAULT_ACCOUNT_ID,
-  type ChannelPlugin,
-  type OpenClawConfig,
-} from "openclaw/plugin-sdk";
+import type { ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
+import { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-core";
 import { AgentGateConfigSchema } from "./config-schema.js";
+import { dispatchInboundChat } from "./openclaw-dispatch.js";
 import { getAgentGateRuntime } from "./runtime.js";
 import {
   listAccountIds,
@@ -203,15 +201,15 @@ export const agentgatePlugin: ChannelPlugin<ResolvedAgentGateAccount> = {
               if (message.from === "human") {
                 log?.debug?.(`Chat from ${message.connId}: ${message.text.slice(0, 80)}...`);
 
-                // Route through OpenClaw's channel pipeline for chat
-                await (runtime.channel.reply as any).handleInboundMessage({
-                  channel: "agentgate",
+                await dispatchInboundChat({
+                  cfg,
+                  runtime,
                   accountId: account.accountId,
                   senderId: message.connId,
-                  chatType: "direct",
-                  chatId: message.connId,
                   text: message.text,
                   messageId: message.id,
+                  timestamp: message.timestamp,
+                  log,
                   reply: async (responseText: string) => {
                     if (client.isConnected()) {
                       client.send({
