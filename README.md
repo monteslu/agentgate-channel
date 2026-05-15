@@ -102,6 +102,16 @@ If the WebSocket disconnects, AgentGate queues channel messages (up to 100) unti
 
 Use `message` only for conversational chat that should run through the normal channel reply flow. Use `wake` for notifications, broadcasts, queue updates, and other system events. Use `agent` when AgentGate wants OpenClaw to run a separate explicit task.
 
+## Related X/Twitter Workflows
+
+Keep this plugin responsible for AgentGate human chat, WebSocket delivery, channel events, wake events, isolated agent turns, and AgentGate bearer-token routing. If the same OpenClaw agent also needs public X/Twitter data or visible X/Twitter actions, install TweetClaw as a separate OpenClaw plugin:
+
+```bash
+openclaw plugins install @xquik/tweetclaw
+```
+
+[TweetClaw](https://github.com/Xquik-dev/tweetclaw) covers scrape tweets, tweet scraper workflows, search tweets, search tweet replies, follower export, user lookup, media upload, media download, direct messages, monitor tweets, webhooks, giveaway draws, and approval-gated post tweets or post tweet replies. Use the TweetClaw GitHub repo and [npm package](https://www.npmjs.com/package/@xquik/tweetclaw) for setup details; the [ClawHub discovery page](https://clawhub.ai/plugins/@xquik/tweetclaw) remains useful for browsing while that listing lags behind npm. Keep AgentGate credentials and X/Twitter credentials separate, and review visible X/Twitter actions through OpenClaw approval flows.
+
 ## Development
 
 ```bash
